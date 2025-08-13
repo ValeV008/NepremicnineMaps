@@ -1,0 +1,108 @@
+[
+  {
+    "index": 1,
+    "title": "BREG OB KOKRI",
+    "price": "600,00 €/mesec",
+    "link": "https://www.nepremicnine.net/oglasi-oddaja/breg-ob-kokri-stanovanje_7016983/",
+    "description": "73 m2, 2-sobno, zgrajeno l. 1960, adaptirano l. 2024, 300 m2 zemljišča, P/VP, oddamo. Cena: do 600,00 EUR/mes",
+    "propertyType": "2-sobno",
+    "details": [
+      "73,00 m2",
+      "1960",
+      "P/VP",
+      "300 m2"
+    ],
+    "seller": "Zasebna ponudba",
+    "image": "https://img.nepremicnine.net/slonep_oglasi2/17678515.jpg"
+  },
+  {
+    "index": 2,
+    "title": "KRANJ",
+    "price": "550,00 €/mesec",
+    "link": "https://www.nepremicnine.net/oglasi-oddaja/kranj-stanovanje_7026126/",
+    "description": "65 m2, 3-sobno, zgrajeno l. 1920, adaptirano l. 2024, P/3 nad., opremljeno, parkirišče, obvezna varščina, za vselitev po...",
+    "propertyType": "3-sobno",
+    "details": [
+      "65,00 m2",
+      "1920",
+      "P/3"
+    ],
+    "seller": "Nepremičnina posredovanje d.o.o.",
+    "image": "https://img.nepremicnine.net/slonep_oglasi2/17820549.jpg"
+  },
+  {
+    "index": 3,
+    "title": "KRANJ",
+    "price": "450,00 €/mesec",
+    "link": "https://www.nepremicnine.net/oglasi-oddaja/kranj-stanovanje_7007699/",
+    "description": "65 m2, 2-sobno, zgrajeno l. 2000, mansarda, oddamo. Cena: cca 450,00 EUR/mes",
+    "propertyType": "2-sobno",
+    "details": [
+      "65,00 m2",
+      "2000",
+      "M"
+    ],
+    "seller": "Zasebna ponudba",
+    "image": "https://img.nepremicnine.net/slonep_oglasi2/17526319.jpg"
+  },
+  {
+    "index": 4,
+    "title": "KRANJ, CENTER MESTA, GLAVNI TRG",
+    "price": "550,00 €/mesec",
+    "link": "https://www.nepremicnine.net/oglasi-oddaja/kranj-center-mesta-glavni-trg-stanovanje_7035317/",
+    "description": "30 m2, 1-sobno, adaptirano l. 2025, 1. nad., Stanovanje se nahaja v centru na Glavnem trgu, vseljivo bo predvidoma 1.9.,...",
+    "propertyType": "1-sobno",
+    "details": [
+      "30,00 m2",
+      "2025",
+      "1"
+    ],
+    "seller": "Zasebna ponudba",
+    "image": "https://img.nepremicnine.net/slonep_oglasi2/17984976.jpg"
+  },
+  {
+    "index": 5,
+    "title": "KRANJ, DRULOVKA",
+    "price": "350,00 €/mesec",
+    "link": "https://www.nepremicnine.net/oglasi-oddaja/kranj-drulovka-stanovanje_6373872/",
+    "description": "120 m2, 5 in večsobno, zgrajeno l. 1980, adaptirano l. 2024, pritličje, oddamo. Cena: 350,00 EUR/mes",
+    "propertyType": "5 in večsobno",
+    "details": [
+      "120,00 m2",
+      "1980",
+      "P"
+    ],
+    "seller": "Zasebna ponudba",
+    "image": "https://www.nepremicnine.net/images/velikost.svg"
+  },
+  {
+    "index": 6,
+    "title": "KRANJ, PLANINA",
+    "price": "600,00 €/mesec",
+    "link": "https://www.nepremicnine.net/oglasi-oddaja/kranj-planina-stanovanje_7035802/",
+    "description": "54 m2, 1,5-sobno, zgrajeno l. 1979, 2/4 nad., oddamo. Cena: 600,00 EUR/mes",
+    "propertyType": "1,5-sobno",
+    "details": [
+      "54,00 m2",
+      "1979",
+      "2/4"
+    ],
+    "seller": "Zasebna ponudba",
+    "image": "https://www.nepremicnine.net/images/velikost.svg"
+  },
+  {
+    "index": 7,
+    "title": "PŠENIČNA POLICA",
+    "price": "400,00 €/mesec",
+    "link": "https://www.nepremicnine.net/oglasi-oddaja/psenicna-polica-stanovanje_7035766/",
+    "description": "38 m2, 1,5-sobno, zgrajeno l. 2010, 400 m2 zemljišča, Prepoved kajenja in domačih živali, oddamo. Cena: 400,00 EUR/mes",
+    "propertyType": "1,5-sobno",
+    "details": [
+      "38,00 m2",
+      "2010",
+      "400 m2"
+    ],
+    "seller": "Zasebna ponudba",
+    "image": "https://www.nepremicnine.net/images/velikost.svg"
+  }
+]
