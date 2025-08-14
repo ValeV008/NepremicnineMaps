@@ -1,15 +1,15 @@
+[dev]
+  command = "npm start"
+  port = 8888
+  targetPort = 3000
+  framework = "create-react-app"
+  publish = ""
+  functions = "netlify/functions"
+
 [build]
   command = "npm run build"
   publish = "build"
   functions = "netlify/functions"
-
-[dev]
-  functions = "netlify/functions"
-  command = "npm start"
-  port = 8888
-  targetPort = 3000
-  publish = "public"
-  framework = "create-react-app"
 
 [build.environment]
   NODE_VERSION = "18"

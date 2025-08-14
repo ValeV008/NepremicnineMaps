@@ -5,6 +5,67 @@ import dotenv from "dotenv";
 // Load environment variables
 dotenv.config();
 
+/**
+ * --- Simple in-memory cache (persists while the function instance is warm) ---
+ * Key: town string
+ * Value: { lat: number|null, lon: number|null }
+ */
+const GEO_CACHE = new Map();
+
+/**
+ * Geocode a town name to { lat, lon } using Nominatim (OpenStreetMap).
+ * Adds ", Slovenia" to bias results. Adjust if your listings span other countries.
+ */
+async function geocodeTown(townRaw) {
+  const town = (townRaw || "").trim();
+  if (!town || town === "No town") {
+    return { lat: null, lon: null };
+  }
+
+  // Return from cache if available
+  if (GEO_CACHE.has(town)) return GEO_CACHE.get(town);
+
+  const query = `${town}, Slovenia`;
+  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(
+    query
+  )}`;
+
+  // Nominatim requires a descriptive User-Agent with contact info
+  const userAgent =
+    process.env.NOMINATIM_USER_AGENT ||
+    `PropertyMap/1.0 (${
+      process.env.NOMINATIM_CONTACT_EMAIL || "kragelj.valentin.com"
+    })`;
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": userAgent,
+        Accept: "application/json",
+      },
+    });
+    if (!res.ok) throw new Error(`Nominatim HTTP ${res.status}`);
+    const data = await res.json();
+
+    const result =
+      Array.isArray(data) && data.length > 0
+        ? { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) }
+        : { lat: null, lon: null };
+
+    GEO_CACHE.set(town, result);
+
+    // Optional: Respectful pause to avoid hammering the free service (1 req/sec).
+    // await new Promise((r) => setTimeout(r, 1000));
+
+    return result;
+  } catch (err) {
+    console.error("Geocoding error for town:", town, err);
+    const fallback = { lat: null, lon: null };
+    GEO_CACHE.set(town, fallback);
+    return fallback;
+  }
+}
+
 export const handler = async (event, context) => {
   // Enable CORS for web requests
   const headers = {
@@ -16,11 +77,7 @@ export const handler = async (event, context) => {
 
   // Handle OPTIONS request for CORS
   if (event.httpMethod === "OPTIONS") {
-    return {
-      statusCode: 200,
-      headers,
-      body: "",
-    };
+    return { statusCode: 200, headers, body: "" };
   }
 
   try {
@@ -44,9 +101,8 @@ export const handler = async (event, context) => {
         ignoreHTTPSErrors: true,
       });
     } else {
-      // For local development, try to use system Chrome or fallback to mock data
+      // For local development, try to use system Chrome or fail clearly
       try {
-        // Try to find Chrome in common locations
         const chromePaths = [
           "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
           "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
@@ -54,16 +110,16 @@ export const handler = async (event, context) => {
         ].filter(Boolean);
 
         let executablePath = null;
-        for (const path of chromePaths) {
-          try {
-            const fs = await import("fs");
-            if (fs.existsSync(path)) {
-              executablePath = path;
+        try {
+          const fs = await import("fs");
+          for (const p of chromePaths) {
+            if (p && fs.existsSync(p)) {
+              executablePath = p;
               break;
             }
-          } catch (e) {
-            // Continue to next path
           }
+        } catch (_) {
+          // ignore
         }
 
         if (executablePath) {
@@ -110,7 +166,9 @@ export const handler = async (event, context) => {
         const titleElement = box.querySelector("h2");
         const title = titleElement ? titleElement.textContent.trim() : "No title";
 
-        // Extract price
+        // Heuristic: if you later identify a dedicated location element, replace this.
+        const town = title === "No title" ? "No town" : title;
+
         const priceElement = box.querySelector("h6");
         const price = priceElement ? priceElement.textContent.trim() : "No price";
 
@@ -135,9 +193,7 @@ export const handler = async (event, context) => {
         const details = [];
         detailsList.forEach((li) => {
           const text = li.textContent.trim();
-          if (text) {
-            details.push(text);
-          }
+          if (text) details.push(text);
         });
 
         // Extract seller/agency
@@ -153,6 +209,7 @@ export const handler = async (event, context) => {
         properties.push({
           id: index + 1,
           title: title,
+          town: town,
           price: price,
           link: link,
           description: description,
@@ -169,14 +226,38 @@ export const handler = async (event, context) => {
 
     await browser.close();
 
+    // --- Geocode unique towns and attach latitude/longitude ---
+    const uniqueTowns = [
+      ...new Set(
+        properties.map((p) => (p.town || "").trim()).filter((t) => t && t !== "No town")
+      ),
+    ];
+
+    // Geocode sequentially (safer for rate-limited free service)
+    const townCoordMap = {};
+    for (const t of uniqueTowns) {
+      const { lat, lon } = await geocodeTown(t);
+      townCoordMap[t] = { lat, lon };
+    }
+
+    const propertiesWithCoords = properties.map((p) => {
+      const key = (p.town || "").trim();
+      const coords = key ? townCoordMap[key] : null;
+      return {
+        ...p,
+        latitude: coords?.lat ?? null,
+        longitude: coords?.lon ?? null,
+      };
+    });
+
     // Return the properties as JSON
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         success: true,
-        count: properties.length,
-        properties: properties,
+        count: propertiesWithCoords.length,
+        properties: propertiesWithCoords,
         scrapedAt: new Date().toISOString(),
         source: "nepremicnine.net",
       }),
