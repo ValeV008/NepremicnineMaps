@@ -101,8 +101,7 @@ export const handler = async (event, context) => {
   }
 
   try {
-    const url =
-      "https://www.nepremicnine.net/oglasi-oddaja/gorenjska/kranj/stanovanje/1-sobno,15-sobno,2-sobno,25-sobno,3-sobno,35-sobno,4-sobno,45-sobno,5-in-vecsobno,drugo-36,apartma/cena-do-600-eur-na-mesec/?nadst[0]=vsa&nadst[1]=vsa";
+    const { url } = event.queryStringParameters;
 
     // Check if we're in Netlify environment or local development
     const isNetlify = process.env.NETLIFY === "true";

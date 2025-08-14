@@ -1,16 +1,13 @@
-import React from "react";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import "leaflet-defaulticon-compatibility";
 import "leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.webpack.css";
 import "leaflet/dist/leaflet.css";
 
 export default function App() {
-  // Helpers to offset markers a small distance (in meters → degrees)
   const metersToLat = (m) => m / 111_320;
   const metersToLng = (m, lat) => m / (111_320 * Math.cos((lat * Math.PI) / 180));
 
-  // Group properties by identical coordinates
   function groupByCoord(properties) {
     const map = new Map();
     for (const p of properties) {
@@ -21,7 +18,6 @@ export default function App() {
     return [...map.values()];
   }
 
-  // Spread duplicates in a circle
   function fanOutGroup(group, rMeters = 100) {
     if (group.length === 1) return group;
     const { latitude: lat, longitude: lng } = group[0];
@@ -36,17 +32,17 @@ export default function App() {
   }
 
   const [properties, setProperties] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [searchUrl, setSearchUrl] = useState("");
 
-  useEffect(() => {
+  const fetchProperties = (urlParam) => {
     setLoading(true);
     setError(null);
 
-    fetch("/.netlify/functions/getProperties")
-      .then((res) => {
-        return res.json();
-      })
+    const query = urlParam ? `?url=${encodeURIComponent(urlParam)}` : "";
+    fetch(`/.netlify/functions/getProperties${query}`)
+      .then((res) => res.json())
       .then((data) => {
         if (data.success) {
           setProperties(data.properties);
@@ -60,105 +56,160 @@ export default function App() {
       .finally(() => {
         setLoading(false);
       });
-  }, []);
+  };
 
-  // Show loading state
-  if (loading) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "100vh",
-          fontSize: "24px",
-          fontWeight: "bold",
-          color: "#333",
-        }}
-      >
-        Loading properties...
-      </div>
-    );
-  }
+  const handleSearch = () => {
+    if (searchUrl.trim()) {
+      fetchProperties(searchUrl.trim());
+    }
+  };
 
-  // Show error state
-  if (error) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "100vh",
-          fontSize: "18px",
-          color: "#d32f2f",
-          textAlign: "center",
-          padding: "20px",
-        }}
-      >
-        <div>
-          <h2>Error Loading Properties</h2>
-          <p>{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            style={{
-              padding: "10px 20px",
-              fontSize: "16px",
-              backgroundColor: "#1976d2",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-            }}
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // Optional: initial load
+  // useEffect(() => {
+  //   fetchProperties(
+  //     "https://www.nepremicnine.net/oglasi-oddaja/gorenjska/kranj/stanovanje/1-sobno,15-sobno,2-sobno,25-sobno,3-sobno,35-sobno,4-sobno,45-sobno,5-in-vecsobno,drugo-36,apartma/cena-do-600-eur-na-mesec/?nadst[0]=vsa&nadst[1]=vsa"
+  //   );
+  // }, []);
 
   return (
-    <MapContainer center={[46.1512, 14.9955]} zoom={8} style={{ height: "100vh" }}>
-      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-      {groupByCoord(properties)
-        .flatMap((group) => fanOutGroup(group))
-        .map((property) => (
-          <Marker
-            key={property.id}
-            position={[
-              property.latitude ? property.latitude : 46.1512,
-              property.longitude ? property.longitude : 14.9955,
-            ]}
-          >
-            <Popup>
-              <a
-                href={property.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ textDecoration: "none", color: "inherit" }}
-              >
-                <b>{property.title}</b>
+    <div style={{ height: "100vh", position: "relative" }}>
+      {/* Search Bar */}
+      <div
+        style={{
+          position: "absolute",
+          top: "10px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 1000,
+          background: "white",
+          padding: "8px",
+          borderRadius: "6px",
+          boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+          display: "flex",
+          gap: "8px",
+        }}
+      >
+        <input
+          type="text"
+          placeholder="Enter nepremicnine.net search URL"
+          value={searchUrl}
+          onChange={(e) => setSearchUrl(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              handleSearch();
+            }
+          }}
+          style={{
+            padding: "6px",
+            border: "1px solid #ccc",
+            borderRadius: "4px",
+            minWidth: "300px",
+          }}
+        />
+        <button
+          onClick={handleSearch}
+          style={{
+            padding: "6px 12px",
+            border: "none",
+            borderRadius: "4px",
+            backgroundColor: "#1976d2",
+            color: "white",
+            cursor: "pointer",
+          }}
+        >
+          Search
+        </button>
+      </div>
 
-                <br />
-                {property.price}
-                {property.image && (
-                  <div style={{ marginTop: "8px" }}>
-                    <img
-                      src={property.image}
-                      alt={property.title}
-                      style={{
-                        maxWidth: "200px",
-                        maxHeight: "120px",
-                        borderRadius: "6px",
-                      }}
-                    />
-                  </div>
-                )}
-              </a>
-            </Popup>
-          </Marker>
-        ))}
-    </MapContainer>
+      {/* Map */}
+      {loading ? (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            height: "100%",
+            fontSize: "24px",
+            fontWeight: "bold",
+            color: "#333",
+          }}
+        >
+          Loading properties...
+        </div>
+      ) : error ? (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            height: "100%",
+            fontSize: "18px",
+            color: "#d32f2f",
+            textAlign: "center",
+            padding: "20px",
+          }}
+        >
+          <div>
+            <h2>Error Loading Properties</h2>
+            <p>{error}</p>
+            <button
+              onClick={() => fetchProperties()}
+              style={{
+                padding: "10px 20px",
+                fontSize: "16px",
+                backgroundColor: "#1976d2",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      ) : (
+        <MapContainer center={[46.1512, 14.9955]} zoom={8} style={{ height: "100%" }}>
+          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          {groupByCoord(properties)
+            .flatMap((group) => fanOutGroup(group))
+            .map((property) => (
+              <Marker
+                key={property.id}
+                position={[
+                  property.latitude ? property.latitude : 46.1512,
+                  property.longitude ? property.longitude : 14.9955,
+                ]}
+              >
+                <Popup>
+                  <a
+                    href={property.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ textDecoration: "none", color: "inherit" }}
+                  >
+                    <b>{property.title}</b>
+                    <br />
+                    {property.price}
+                    {property.image && (
+                      <div style={{ marginTop: "8px" }}>
+                        <img
+                          src={property.image}
+                          alt={property.title}
+                          style={{
+                            maxWidth: "200px",
+                            maxHeight: "120px",
+                            borderRadius: "6px",
+                          }}
+                        />
+                      </div>
+                    )}
+                  </a>
+                </Popup>
+              </Marker>
+            ))}
+        </MapContainer>
+      )}
+    </div>
   );
 }
