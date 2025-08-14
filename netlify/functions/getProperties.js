@@ -104,9 +104,11 @@ export const handler = async (event, context) => {
     const { url } = event.queryStringParameters;
 
     // Check if we're in Netlify environment or local development
-    const isNetlify = process.env.NETLIFY === "true";
-    console.log("Environment check:", { isNetlify, NETLIFY: process.env.NETLIFY });
-    console.log("CHROME_EXECUTABLE_PATH:", process.env.CHROME_EXECUTABLE_PATH);
+    const isNetlify = !process.env.CHROME_EXECUTABLE_PATH; // If CHROME_EXECUTABLE_PATH is not set, assume Netlify
+    console.log("Environment check:", {
+      isNetlify,
+      CHROME_EXECUTABLE_PATH: process.env.CHROME_EXECUTABLE_PATH,
+    });
 
     let browser;
 
