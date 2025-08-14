@@ -4,13 +4,8 @@ import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import "leaflet-defaulticon-compatibility";
 import "leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.webpack.css";
 import "leaflet/dist/leaflet.css";
-import MarkerClusterGroup from "react-leaflet-markercluster";
-import "leaflet/dist/leaflet.css";
-import "react-leaflet-markercluster/styles";
 
 export default function App() {
-  console.log("App component rendered");
-
   // Helpers to offset markers a small distance (in meters → degrees)
   const metersToLat = (m) => m / 111_320;
   const metersToLng = (m, lat) => m / (111_320 * Math.cos((lat * Math.PI) / 180));
@@ -55,8 +50,6 @@ export default function App() {
       .then((data) => {
         if (data.success) {
           setProperties(data.properties);
-          debugger;
-          console.log("properties:", data.properties);
         } else {
           setError(data.message || "Failed to load properties");
         }
@@ -126,33 +119,46 @@ export default function App() {
   }
 
   return (
-    <MapContainer center={[45.0, 15.0]} zoom={6} style={{ height: "100vh" }}>
+    <MapContainer center={[46.1512, 14.9955]} zoom={8} style={{ height: "100vh" }}>
       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-
-      <MarkerClusterGroup
-        chunkedLoading
-        showCoverageOnHover={false}
-        spiderfyOnEveryZoom
-        maxClusterRadius={50}
-      >
-        {groupByCoord(properties)
-          .flatMap((group) => fanOutGroup(group))
-          .map((property) => (
-            <Marker
-              key={property.id}
-              position={[
-                property.latitude ? property.latitude : 45.0,
-                property.longitude ? property.longitude : 15.0,
-              ]}
-            >
-              <Popup>
+      {groupByCoord(properties)
+        .flatMap((group) => fanOutGroup(group))
+        .map((property) => (
+          <Marker
+            key={property.id}
+            position={[
+              property.latitude ? property.latitude : 46.1512,
+              property.longitude ? property.longitude : 14.9955,
+            ]}
+          >
+            <Popup>
+              <a
+                href={property.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ textDecoration: "none", color: "inherit" }}
+              >
                 <b>{property.title}</b>
+
                 <br />
                 {property.price}
-              </Popup>
-            </Marker>
-          ))}
-      </MarkerClusterGroup>
+                {property.image && (
+                  <div style={{ marginTop: "8px" }}>
+                    <img
+                      src={property.image}
+                      alt={property.title}
+                      style={{
+                        maxWidth: "200px",
+                        maxHeight: "120px",
+                        borderRadius: "6px",
+                      }}
+                    />
+                  </div>
+                )}
+              </a>
+            </Popup>
+          </Marker>
+        ))}
     </MapContainer>
   );
 }

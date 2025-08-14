@@ -1,0 +1,13 @@
+/* Popup image size fix for react-leaflet */
+.leaflet-popup-content img {
+  max-width: 100% !important;
+  height: auto !important;
+  display: block;
+  margin: 0 auto;
+  border-radius: 6px;
+}
+
+.leaflet-popup-content {
+  max-width: 220px !important;
+  word-break: break-word;
+}

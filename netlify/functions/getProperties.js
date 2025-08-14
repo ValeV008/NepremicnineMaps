@@ -25,11 +25,6 @@ async function geocodeTown(townRaw) {
   // Return from cache if available
   if (GEO_CACHE.has(town)) return GEO_CACHE.get(town);
 
-  const query = `${town}, Slovenia`;
-  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(
-    query
-  )}`;
-
   // Nominatim requires a descriptive User-Agent with contact info
   const userAgent =
     process.env.NOMINATIM_USER_AGENT ||
@@ -37,7 +32,10 @@ async function geocodeTown(townRaw) {
       process.env.NOMINATIM_CONTACT_EMAIL || "kragelj.valentin.com"
     })`;
 
-  try {
+  async function queryNominatim(query) {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(
+      query
+    )}`;
     const res = await fetch(url, {
       headers: {
         "User-Agent": userAgent,
@@ -45,18 +43,40 @@ async function geocodeTown(townRaw) {
       },
     });
     if (!res.ok) throw new Error(`Nominatim HTTP ${res.status}`);
-    const data = await res.json();
+    return res.json();
+  }
+
+  try {
+    // First try without ", Slovenia"
+    let data = await queryNominatim(town);
+
+    // If no results, try with ", Slovenia"
+    if (!Array.isArray(data) || data.length === 0) {
+      data = await queryNominatim(`${town}, Slovenia`);
+    }
+
+    // if no results, try until last comma (without ", Slovenia")
+    if (!Array.isArray(data) || data.length === 0) {
+      let townToTry = town;
+      while (!Array.isArray(data) || data.length === 0) {
+        const lastCommaIndex = townToTry.lastIndexOf(",");
+        if (lastCommaIndex === -1) break; // No more parts to try
+        townToTry = townToTry.slice(0, lastCommaIndex);
+        data = await queryNominatim(townToTry);
+      }
+    }
 
     const result =
-      Array.isArray(data) && data.length > 0
+      Array.isArray(data) &&
+      data.length > 0 &&
+      data[0].lat != null &&
+      data[0].lon != null &&
+      !isNaN(parseFloat(data[0].lat)) &&
+      !isNaN(parseFloat(data[0].lon))
         ? { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) }
         : { lat: null, lon: null };
 
     GEO_CACHE.set(town, result);
-
-    // Optional: Respectful pause to avoid hammering the free service (1 req/sec).
-    // await new Promise((r) => setTimeout(r, 1000));
-
     return result;
   } catch (err) {
     console.error("Geocoding error for town:", town, err);
@@ -169,6 +189,11 @@ export const handler = async (event, context) => {
         // Heuristic: if you later identify a dedicated location element, replace this.
         const town = title === "No title" ? "No town" : title;
 
+        // Extract URL
+        const urlElement = box.querySelector("a.url-title-d");
+        const url = urlElement ? urlElement.href : "No url-title-d";
+
+        // Extract price
         const priceElement = box.querySelector("h6");
         const price = priceElement ? priceElement.textContent.trim() : "No price";
 
@@ -203,8 +228,30 @@ export const handler = async (event, context) => {
           : "No seller info";
 
         // Extract image
-        const imgElement = box.querySelector('img[src*="nepremicnine.net"]');
-        const image = imgElement ? imgElement.src : "No image";
+        const imgElement = box.querySelector(".property-image img");
+        let image = "No image";
+        if (imgElement) {
+          // 1) Prefer lazy-loaded source
+          let src =
+            imgElement.getAttribute("data-src") || imgElement.getAttribute("src");
+
+          // 2) Fallback to srcset/data-srcset (take the first URL)
+          if (!src) {
+            const srcset =
+              imgElement.getAttribute("data-srcset") ||
+              imgElement.getAttribute("srcset");
+            if (srcset) {
+              // srcset format: "url1 320w, url2 640w, ..."
+              const first = srcset.split(",")[0].trim().split(/\s+/)[0];
+              if (first) src = first;
+            }
+          }
+
+          // 3) Make absolute if needed
+          if (src) {
+            image = src.startsWith("http") ? src : new URL(src, document.baseURI).href;
+          }
+        }
 
         properties.push({
           id: index + 1,
@@ -217,6 +264,7 @@ export const handler = async (event, context) => {
           details: details,
           seller: seller,
           image: image,
+          url: url,
           scrapedAt: new Date().toISOString(),
         });
       });
