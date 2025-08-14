@@ -104,7 +104,7 @@ export const handler = async (event, context) => {
     const { url } = event.queryStringParameters;
 
     // Check if we're in Netlify environment or local development
-    const isNetlify = !process.env.CHROME_EXECUTABLE_PATH; // If CHROME_EXECUTABLE_PATH is not set, assume Netlify
+    const isNetlify = process.env.AWS_LAMBDA_FUNCTION_NAME; // If AWS_LAMBDA_FUNCTION_NAME is set, assume Netlify
     console.log("Environment check:", {
       isNetlify,
       CHROME_EXECUTABLE_PATH: process.env.CHROME_EXECUTABLE_PATH,
@@ -115,7 +115,12 @@ export const handler = async (event, context) => {
     if (isNetlify) {
       // Use @sparticuz/chromium for Netlify
       browser = await puppeteer.launch({
-        args: chromium.args,
+        args: [
+          ...chromium.args,
+          "--disable-dev-shm-usage",
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+        ],
         defaultViewport: chromium.defaultViewport,
         executablePath: await chromium.executablePath(),
         headless: chromium.headless,
@@ -123,43 +128,24 @@ export const handler = async (event, context) => {
       });
     } else {
       // For local development, try to use system Chrome or fail clearly
-      try {
-        const chromePaths = [
-          "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-          "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
-          process.env.CHROME_EXECUTABLE_PATH,
-        ].filter(Boolean);
-
-        let executablePath = null;
-        try {
-          const fs = await import("fs");
-          for (const p of chromePaths) {
-            if (p && fs.existsSync(p)) {
-              executablePath = p;
-              break;
-            }
-          }
-        } catch (_) {
-          // ignore
-        }
-
-        if (executablePath) {
-          console.log("Using Chrome at:", executablePath);
-          browser = await puppeteer.launch({
-            executablePath,
-            headless: true,
-            args: ["--no-sandbox", "--disable-setuid-sandbox"],
-          });
-        } else {
-          throw new Error("Chrome not found");
-        }
-      } catch (error) {
-        console.log("Chrome not available locally, throwing error");
-        throw new Error("Chrome browser not available for local development");
-      }
+      browser = await puppeteer.launch({
+        executablePath: process.env.CHROME_EXECUTABLE_PATH,
+        headless: true,
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      });
     }
 
     const page = await browser.newPage();
+
+    // abort unneeded requests
+    await page.setRequestInterception(true);
+    page.on("request", (req) => {
+      if (["image", "stylesheet", "font"].includes(req.resourceType())) {
+        req.abort();
+      } else {
+        req.continue();
+      }
+    });
 
     // Set user agent to look more like a real browser
     await page.setUserAgent(
@@ -170,19 +156,18 @@ export const handler = async (event, context) => {
     await page.setViewport({ width: 1920, height: 1080 });
 
     // Navigate to page
-    await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });
 
     // Wait a bit for any dynamic content to load
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    // await new Promise((resolve) => setTimeout(resolve, 3000));
+    //use this instead for now
+    await page.waitForSelector(".property-box", { timeout: 5000 });
 
     // Extract properties using the correct selectors
     const properties = await page.evaluate(() => {
       const properties = [];
 
-      // Find all property boxes
-      const propertyBoxes = document.querySelectorAll(".property-box");
-
-      propertyBoxes.forEach((box, index) => {
+      document.querySelectorAll(".property-box").forEach((box, index) => {
         // Extract title
         const titleElement = box.querySelector("h2");
         const title = titleElement ? titleElement.textContent.trim() : "No title";
@@ -203,52 +188,48 @@ export const handler = async (event, context) => {
         const link = linkElement ? linkElement.href : "No link";
 
         // Extract description
-        const descElement = box.querySelector('p[itemprop="description"]');
-        const description = descElement
-          ? descElement.textContent.trim()
-          : "No description";
+        // const descElement = box.querySelector('p[itemprop="description"]');
+        // const description = descElement
+        //   ? descElement.textContent.trim()
+        //   : "No description";
 
         // Extract property type
-        const typeElement = box.querySelector(".tipi");
-        const propertyType = typeElement ? typeElement.textContent.trim() : "No type";
+        // const typeElement = box.querySelector(".tipi");
+        // const propertyType = typeElement ? typeElement.textContent.trim() : "No type";
 
         // Extract details from the ul list
-        const detailsList = box.querySelectorAll(
-          'ul[itemprop="disambiguatingDescription"] li'
-        );
-        const details = [];
-        detailsList.forEach((li) => {
-          const text = li.textContent.trim();
-          if (text) details.push(text);
-        });
+        // const detailsList = box.querySelectorAll(
+        //   'ul[itemprop="disambiguatingDescription"] li'
+        // );
+        // const details = [];
+        // detailsList.forEach((li) => {
+        //   const text = li.textContent.trim();
+        //   if (text) details.push(text);
+        // });
 
         // Extract seller/agency
-        const sellerElement = box.querySelector(".property-btn span");
-        const seller = sellerElement
-          ? sellerElement.textContent.trim()
-          : "No seller info";
+        // const sellerElement = box.querySelector(".property-btn span");
+        // const seller = sellerElement
+        //   ? sellerElement.textContent.trim()
+        //   : "No seller info";
 
         // Extract image
         const imgElement = box.querySelector(".property-image img");
         let image = "No image";
         if (imgElement) {
-          // 1) Prefer lazy-loaded source
           let src =
             imgElement.getAttribute("data-src") || imgElement.getAttribute("src");
 
-          // 2) Fallback to srcset/data-srcset (take the first URL)
           if (!src) {
             const srcset =
               imgElement.getAttribute("data-srcset") ||
               imgElement.getAttribute("srcset");
             if (srcset) {
-              // srcset format: "url1 320w, url2 640w, ..."
               const first = srcset.split(",")[0].trim().split(/\s+/)[0];
               if (first) src = first;
             }
           }
 
-          // 3) Make absolute if needed
           if (src) {
             image = src.startsWith("http") ? src : new URL(src, document.baseURI).href;
           }
@@ -260,13 +241,13 @@ export const handler = async (event, context) => {
           town: town,
           price: price,
           link: link,
-          description: description,
-          propertyType: propertyType,
-          details: details,
-          seller: seller,
+          // description: description,
+          // propertyType: propertyType,
+          // details: details,
+          // seller: seller,
           image: image,
           url: url,
-          scrapedAt: new Date().toISOString(),
+          // scrapedAt: new Date().toISOString(),
         });
       });
 
@@ -282,20 +263,22 @@ export const handler = async (event, context) => {
       ),
     ];
 
-    // Geocode sequentially (safer for rate-limited free service)
     const townCoordMap = {};
-    for (const t of uniqueTowns) {
-      const { lat, lon } = await geocodeTown(t);
-      townCoordMap[t] = { lat, lon };
+    const chunkSize = 5;
+    for (let i = 0; i < uniqueTowns.length; i += chunkSize) {
+      const chunk = uniqueTowns.slice(i, i + chunkSize);
+      const results = await Promise.all(chunk.map((t) => geocodeTown(t)));
+      chunk.forEach((town, idx) => {
+        townCoordMap[town] = results[idx];
+      });
     }
 
     const propertiesWithCoords = properties.map((p) => {
-      const key = (p.town || "").trim();
-      const coords = key ? townCoordMap[key] : null;
+      const coords = townCoordMap[(p.town || "").trim()] || {};
       return {
         ...p,
-        latitude: coords?.lat ?? null,
-        longitude: coords?.lon ?? null,
+        latitude: coords.lat ?? null,
+        longitude: coords.lon ?? null,
       };
     });
 
@@ -305,22 +288,22 @@ export const handler = async (event, context) => {
       headers,
       body: JSON.stringify({
         success: true,
-        count: propertiesWithCoords.length,
+        // count: propertiesWithCoords.length,
         properties: propertiesWithCoords,
-        scrapedAt: new Date().toISOString(),
-        source: "nepremicnine.net",
+        // scrapedAt: new Date().toISOString(),
+        // source: "nepremicnine.net",
       }),
     };
   } catch (error) {
     console.error("Error scraping properties:", error);
-
     return {
-      statusCode: 500,
+      statusCode: 200,
       headers,
       body: JSON.stringify({
         success: false,
         error: error.message,
         message: "Failed to scrape properties",
+        properties: [],
       }),
     };
   }
