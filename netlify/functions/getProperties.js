@@ -1,6 +1,7 @@
 import puppeteer from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
 import dotenv from "dotenv";
+import fs from "node:fs/promises";
 
 dotenv.config();
 
@@ -146,6 +147,18 @@ export const handler = async (event, context) => {
       `Environment check: isNetlify=${isNetlify}, CHROME_EXECUTABLE_PATH=${process.env.CHROME_EXECUTABLE_PATH}`
     );
 
+    try {
+      process.env.HOME = "/tmp";
+      process.env.TMPDIR = "/tmp";
+      await fs.mkdir("/tmp/chrome-user-data", { recursive: true });
+      await fs.mkdir("/tmp/data-path", { recursive: true });
+      await fs.mkdir("/tmp/cache-dir", { recursive: true });
+      await fs.mkdir("/tmp/.pki/nssdb", { recursive: true }); // <- for NSS
+      log("tmp dirs ready under /tmp");
+    } catch (e) {
+      log(`tmp dirs prep error: ${e.message}`);
+    }
+
     let browser;
     try {
       const tLaunch = now();
@@ -161,6 +174,9 @@ export const handler = async (event, context) => {
             "--single-process",
             "--disable-gpu",
             "--disable-software-rasterizer",
+            `--user-data-dir=/tmp/chrome-user-data`, // <- writable profile
+            `--data-path=/tmp/data-path`, // <- NSS/DB path
+            `--disk-cache-dir=/tmp/cache-dir`, // <- cache in /tmp
           ],
           defaultViewport: chromium.defaultViewport,
           executablePath: await chromium.executablePath(),
