@@ -101,6 +101,13 @@ export const handler = async (event, context) => {
   const tStart = now();
   const log = (msg) => console.log(`[req:${reqId}] ${msg}`);
 
+  const mu = process.memoryUsage();
+  log(
+    `mem[rss=${Math.round(mu.rss / 1024 / 1024)}MB, heap=${Math.round(
+      mu.heapUsed / 1024 / 1024
+    )}MB]`
+  );
+
   // Enable CORS for web requests
   const headers = {
     "Access-Control-Allow-Origin": "*",
@@ -159,6 +166,7 @@ export const handler = async (event, context) => {
           executablePath: await chromium.executablePath(),
           headless: chromium.headless,
           ignoreHTTPSErrors: true,
+          dumpio: true,
         });
       } else {
         log(
@@ -183,24 +191,32 @@ export const handler = async (event, context) => {
       log(`page.newPage: ok in ${dur(tPage)}`);
 
       // Pipe page console/errors for visibility
-      page.on("console", (m) => log(`page.console[${m.type()}]: ${m.text()}`));
-      page.on("pageerror", (err) => log(`page.pageerror: ${err?.message}`));
-      page.on("error", (err) => log(`page.error: ${err?.message}`));
-      // page.on("request", (req) =>
-      //   console.log("Intercept:", req.url(), req.resourceType())
-      // );
+      // Track only navigation requests/responses (to reduce noise)
+      page.on("request", (req) => {
+        if (req.isNavigationRequest()) {
+          log(`nav.request: ${req.method()} ${req.url()}`);
+        }
+      });
+      page.on("response", (res) => {
+        try {
+          const req = res.request();
+          if (req.isNavigationRequest()) {
+            log(`nav.response: ${res.status()} ${req.url()}`);
+          }
+        } catch (_) {}
+      });
+      page.on("requestfailed", (req) => {
+        if (req.isNavigationRequest()) {
+          log(`nav.requestfailed: ${req.failure()?.errorText} ${req.url()}`);
+        }
+      });
 
-      // abort unneeded requests
-      // await page.setRequestInterception(true);
-      // page.on("request", (req) => {
-      //   const type = req.resourceType();
-      //   if (["image", "stylesheet", "font"].includes(type)) {
-      //     req.abort();
-      //   } else {
-      //     req.continue();
-      //   }
-      // });
-      // log("request interception enabled");
+      // Frame lifecycle breadcrumbs
+      page.on("domcontentloaded", () => log("event: domcontentloaded"));
+      page.on("load", () => log("event: load"));
+      page.on("framenavigated", (fr) => {
+        if (fr === page.mainFrame()) log(`event: framenavigated -> ${fr.url()}`);
+      });
 
       await page.setUserAgent(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -229,10 +245,30 @@ export const handler = async (event, context) => {
         });
       }
 
+      // sanity navigation
+      try {
+        const tSanity = Date.now();
+        log(`sanity.goto: https://example.com`);
+        await page.goto("https://example.com", {
+          waitUntil: "domcontentloaded",
+          timeout: 8000,
+        });
+        log(`sanity.goto: ok in ${Date.now() - tSanity}ms`);
+      } catch (e) {
+        log(`sanity.goto: ERROR ${e.message}`);
+      }
+
       // Navigate
       const tGoto = now();
       log(`page.goto: start -> ${url}`);
       try {
+        const mu = process.memoryUsage();
+        log(
+          `mem[rss=${Math.round(mu.rss / 1024 / 1024)}MB, heap=${Math.round(
+            mu.heapUsed / 1024 / 1024
+          )}MB]`
+        );
+
         await page.goto(url, { waitUntil: "domcontentloaded", timeout: 25000 });
       } catch (navErr) {
         log(`page.goto: ERROR ${navErr?.message}`);
