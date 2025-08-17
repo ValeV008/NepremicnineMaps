@@ -134,7 +134,7 @@ export const handler = async (event, context) => {
     }
 
     // Detect Netlify Lambda
-    const isNetlify = !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+    const isNetlify = !process.env.CHROME_EXECUTABLE_PATH;
     log(
       `Environment check: isNetlify=${isNetlify}, CHROME_EXECUTABLE_PATH=${process.env.CHROME_EXECUTABLE_PATH}`
     );
@@ -150,6 +150,9 @@ export const handler = async (event, context) => {
             "--disable-dev-shm-usage",
             "--no-sandbox",
             "--disable-setuid-sandbox",
+            "--no-zygote",
+            "--single-process",
+            "--disable-gpu",
           ],
           defaultViewport: chromium.defaultViewport,
           executablePath: await chromium.executablePath(),
@@ -182,18 +185,21 @@ export const handler = async (event, context) => {
       page.on("console", (m) => log(`page.console[${m.type()}]: ${m.text()}`));
       page.on("pageerror", (err) => log(`page.pageerror: ${err?.message}`));
       page.on("error", (err) => log(`page.error: ${err?.message}`));
+      // page.on("request", (req) =>
+      //   console.log("Intercept:", req.url(), req.resourceType())
+      // );
 
       // abort unneeded requests
-      await page.setRequestInterception(true);
-      page.on("request", (req) => {
-        const type = req.resourceType();
-        if (["image", "stylesheet", "font"].includes(type)) {
-          req.abort();
-        } else {
-          req.continue();
-        }
-      });
-      log("request interception enabled");
+      // await page.setRequestInterception(true);
+      // page.on("request", (req) => {
+      //   const type = req.resourceType();
+      //   if (["image", "stylesheet", "font"].includes(type)) {
+      //     req.abort();
+      //   } else {
+      //     req.continue();
+      //   }
+      // });
+      // log("request interception enabled");
 
       await page.setUserAgent(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -205,7 +211,7 @@ export const handler = async (event, context) => {
       const tGoto = now();
       log(`page.goto: start -> ${url}`);
       try {
-        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });
+        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 25000 });
       } catch (navErr) {
         log(`page.goto: ERROR ${navErr?.message}`);
         throw navErr;
@@ -215,7 +221,7 @@ export const handler = async (event, context) => {
       // Wait for the listing container
       const tWait = now();
       try {
-        await page.waitForSelector(".property-box", { timeout: 5000 });
+        await page.waitForSelector(".property-box", { timeout: 10000 });
         log(`waitForSelector(".property-box"): ok in ${dur(tWait)}`);
       } catch (waitErr) {
         log(`waitForSelector(".property-box"): TIMEOUT/ERROR ${waitErr?.message}`);
