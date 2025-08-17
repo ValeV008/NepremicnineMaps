@@ -153,6 +153,7 @@ export const handler = async (event, context) => {
             "--no-zygote",
             "--single-process",
             "--disable-gpu",
+            "--disable-software-rasterizer",
           ],
           defaultViewport: chromium.defaultViewport,
           executablePath: await chromium.executablePath(),
