@@ -207,6 +207,25 @@ export const handler = async (event, context) => {
       await page.setViewport({ width: 1920, height: 1080 });
       log("UA and viewport set");
 
+      await page.setExtraHTTPHeaders({
+        "Accept-Language": "sl-SI,sl;q=0.9,en-US;q=0.8,en;q=0.7",
+      });
+
+      await page.setRequestInterception(true);
+      page.on("request", (req) => {
+        const url = req.url();
+        // block only the known troublemakers
+        if (
+          url.includes("nepremicnine.click/www/delivery/") ||
+          url.includes("asyncjs.php") ||
+          url.includes("ajs.php")
+        ) {
+          return req.abort();
+        }
+        // allow everything else without delay
+        return req.continue();
+      });
+
       // Navigate
       const tGoto = now();
       log(`page.goto: start -> ${url}`);
