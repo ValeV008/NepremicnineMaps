@@ -36,26 +36,40 @@ export default function App() {
   const [error, setError] = useState(null);
   const [searchUrl, setSearchUrl] = useState("");
 
-  const fetchProperties = (urlParam) => {
+  const fetchProperties = async (urlParam) => {
     setLoading(true);
     setError(null);
 
     const query = urlParam ? `?url=${encodeURIComponent(urlParam)}` : "";
-    fetch(`/.netlify/functions/getProperties${query}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          setProperties(data.properties);
-        } else {
-          setError(data.message || "Failed to load properties");
-        }
-      })
-      .catch((err) => {
-        setError(err.message || "Failed to fetch properties");
-      })
-      .finally(() => {
+    try {
+      const res = await fetch(`/.netlify/functions/getProperties${query}`);
+      const data = await res.json();
+      if (!data.success) {
+        setError(data.message || "Failed to load properties");
         setLoading(false);
+        return;
+      }
+
+      const rawProps = data.properties || [];
+
+      // Enrich properties with geolocation via separate function
+      const geoRes = await fetch(`/.netlify/functions/getPropsLocation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ properties: rawProps }),
       });
+      const geoData = await geoRes.json();
+      if (geoData.success) {
+        setProperties(geoData.properties || []);
+      } else {
+        // If geolocation fails, fall back to raw properties
+        setProperties(rawProps);
+      }
+    } catch (err) {
+      setError(err.message || "Failed to fetch properties");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSearch = () => {
@@ -63,13 +77,6 @@ export default function App() {
       fetchProperties(searchUrl.trim());
     }
   };
-
-  // Optional: initial load
-  // useEffect(() => {
-  //   fetchProperties(
-  //     "https://www.nepremicnine.net/oglasi-oddaja/gorenjska/kranj/stanovanje/1-sobno,15-sobno,2-sobno,25-sobno,3-sobno,35-sobno,4-sobno,45-sobno,5-in-vecsobno,drugo-36,apartma/cena-do-600-eur-na-mesec/?nadst[0]=vsa&nadst[1]=vsa"
-  //   );
-  // }, []);
 
   return (
     <div style={{ height: "100vh", position: "relative" }}>
