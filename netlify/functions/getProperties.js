@@ -71,14 +71,13 @@ export const handler = async (event, context) => {
         //   ignoreHTTPSErrors: true,
         // });
         browser = await puppeteer.connect({
-          browserWSEndpoint: `wss://production-sfo.browserless.io/?token=2SvprjVRTXlgATk25737bfcc3a676141b7c450b30b257e53d`,
+          browserWSEndpoint: `wss://production-ams.browserless.io/?token=2SvprjVRTXlgATk25737bfcc3a676141b7c450b30b257e53d`,
           args: [
             ...chromium.args,
             "--disable-dev-shm-usage",
             "--no-sandbox",
             "--disable-setuid-sandbox",
           ],
-          executablePath: await chromium.executablePath(),
         });
       } else {
         log(
