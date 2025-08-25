@@ -1,6 +1,7 @@
-import puppeteer from "puppeteer-extra";
-import StealthPlugin from "puppeteer-extra-plugin-stealth";
-import chromium from "@sparticuz/chromium";
+//import puppeteer from "puppeteer-extra";
+//import StealthPlugin from "puppeteer-extra-plugin-stealth";
+import puppeteer from "puppeteer-core";
+//import chromium from "@sparticuz/chromium";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -72,12 +73,7 @@ export const handler = async (event, context) => {
         // });
         browser = await puppeteer.connect({
           browserWSEndpoint: `wss://production-ams.browserless.io/?token=2SvprjVRTXlgATk25737bfcc3a676141b7c450b30b257e53d`,
-          args: [
-            ...chromium.args,
-            "--disable-dev-shm-usage",
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-          ],
+          args: ["--disable-dev-shm-usage", "--no-sandbox", "--disable-setuid-sandbox"],
         });
       } else {
         log(
