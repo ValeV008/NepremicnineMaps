@@ -71,9 +71,14 @@ export const handler = async (event, context) => {
         //   headless: false,
         //   ignoreHTTPSErrors: true,
         // });
+        // browserless solution - not working
+        // browser = await puppeteer.connect({
+        //   browserWSEndpoint: `wss://production-ams.browserless.io/?token=process.env.BROWSERLESS_TOKEN`,
+        //   args: ["--disable-dev-shm-usage", "--no-sandbox", "--disable-setuid-sandbox"],
+        // });
+        // zenrows solution
         browser = await puppeteer.connect({
-          browserWSEndpoint: `wss://production-ams.browserless.io/?token=2SvprjVRTXlgATk25737bfcc3a676141b7c450b30b257e53d`,
-          args: ["--disable-dev-shm-usage", "--no-sandbox", "--disable-setuid-sandbox"],
+          browserWSEndpoint: process.env.ZENROW_URL,
         });
       } else {
         log(
