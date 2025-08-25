@@ -34,6 +34,8 @@
     "leaflet": "^1.9.4",
     "leaflet-defaulticon-compatibility": "^0.1.2",
     "puppeteer-core": "24.15",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-leaflet": "^5.0.0"

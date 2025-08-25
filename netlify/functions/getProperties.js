@@ -1,9 +1,12 @@
-import puppeteer from "puppeteer-core";
+import puppeteer from "puppeteer-extra";
+import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import chromium from "@sparticuz/chromium";
 import dotenv from "dotenv";
-import fs from "node:fs/promises";
 
 dotenv.config();
+
+// Enable stealth evasions to reduce automation signals
+puppeteer.use(StealthPlugin());
 
 /** ---------- Debug helpers ---------- */
 const now = () => Date.now();
@@ -102,13 +105,6 @@ export const handler = async (event, context) => {
   const tStart = now();
   const log = (msg) => console.log(`[req:${reqId}] ${msg}`);
 
-  const mu = process.memoryUsage();
-  log(
-    `mem[rss=${Math.round(mu.rss / 1024 / 1024)}MB, heap=${Math.round(
-      mu.heapUsed / 1024 / 1024
-    )}MB]`
-  );
-
   // Enable CORS for web requests
   const headers = {
     "Access-Control-Allow-Origin": "*",
@@ -147,20 +143,6 @@ export const handler = async (event, context) => {
       `Environment check: isNetlify=${isNetlify}, CHROME_EXECUTABLE_PATH=${process.env.CHROME_EXECUTABLE_PATH}`
     );
 
-    try {
-      process.env.HOME = "/tmp";
-      process.env.TMPDIR = "/tmp";
-      process.env.XDG_CACHE_HOME = "/tmp";
-      process.env.XDG_CONFIG_HOME = "/tmp";
-      await fs.mkdir("/tmp/chrome-user-data", { recursive: true });
-      await fs.mkdir("/tmp/data-path", { recursive: true });
-      await fs.mkdir("/tmp/cache-dir", { recursive: true });
-      await fs.mkdir("/tmp/.pki/nssdb", { recursive: true }); // <- for NSS
-      log("tmp dirs ready under /tmp");
-    } catch (e) {
-      log(`tmp dirs prep error: ${e.message}`);
-    }
-
     let browser;
     try {
       const tLaunch = now();
@@ -172,19 +154,10 @@ export const handler = async (event, context) => {
             "--disable-dev-shm-usage",
             "--no-sandbox",
             "--disable-setuid-sandbox",
-            "--no-zygote",
-            "--single-process",
-            "--disable-gpu",
-            "--disable-software-rasterizer",
-            `--user-data-dir=/tmp/chrome-user-data`, // <- writable profile
-            `--data-path=/tmp/data-path`, // <- NSS/DB path
-            `--disk-cache-dir=/tmp/cache-dir`, // <- cache in /tmp
           ],
-          defaultViewport: chromium.defaultViewport,
           executablePath: await chromium.executablePath(),
-          headless: chromium.headless,
+          headless: false,
           ignoreHTTPSErrors: true,
-          dumpio: true,
         });
       } else {
         log(
@@ -241,73 +214,12 @@ export const handler = async (event, context) => {
       await page.setUserAgent(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
       );
-      await page.setViewport({ width: 1920, height: 1080 });
       await page.emulateTimezone("Europe/Ljubljana");
+      await page.setViewport({
+        width: Math.floor(1024 + Math.random() * 100),
+        height: Math.floor(768 + Math.random() * 100),
+      });
       log("UA/viewport/timezone set");
-
-      await page.setExtraHTTPHeaders({
-        "Accept-Language": "sl-SI,sl;q=0.9,en-US;q=0.8,en;q=0.7",
-      });
-
-      // Patch automation signals before any scripts run
-      await page.evaluateOnNewDocument(() => {
-        try {
-          Object.defineProperty(navigator, "webdriver", { get: () => false });
-        } catch {}
-
-        try {
-          // Spoof plugins
-          Object.defineProperty(navigator, "plugins", {
-            get: () => [{}, {}, {}],
-          });
-        } catch {}
-
-        try {
-          // Spoof languages
-          Object.defineProperty(navigator, "languages", {
-            get: () => ["sl-SI", "sl", "en-US", "en"],
-          });
-        } catch {}
-
-        try {
-          // Spoof platform
-          Object.defineProperty(navigator, "platform", { get: () => "Win32" });
-        } catch {}
-
-        try {
-          // Reasonable hardware characteristics
-          Object.defineProperty(navigator, "hardwareConcurrency", { get: () => 8 });
-          Object.defineProperty(navigator, "deviceMemory", { get: () => 8 });
-        } catch {}
-
-        try {
-          // Patch permissions query for notifications (common detection)
-          const originalQuery = window.navigator.permissions?.query;
-          if (originalQuery) {
-            window.navigator.permissions.query = (parameters) =>
-              parameters && parameters.name === "notifications"
-                ? Promise.resolve({ state: Notification.permission })
-                : originalQuery(parameters);
-          }
-        } catch {}
-
-        try {
-          // userAgentData may exist — ensure not mobile and set platform
-          if (navigator.userAgentData) {
-            Object.defineProperty(navigator.userAgentData, "mobile", {
-              get: () => false,
-            });
-            if (Array.isArray(navigator.userAgentData.brands)) {
-              // leave brands as-is; altering can break sites
-            }
-            if (!navigator.userAgentData.platform) {
-              Object.defineProperty(navigator.userAgentData, "platform", {
-                get: () => "Windows",
-              });
-            }
-          }
-        } catch {}
-      });
 
       if (!isNetlify) {
         await page.setRequestInterception(true);
@@ -343,13 +255,6 @@ export const handler = async (event, context) => {
       const tGoto = now();
       log(`page.goto: start -> ${url}`);
       try {
-        const mu = process.memoryUsage();
-        log(
-          `mem[rss=${Math.round(mu.rss / 1024 / 1024)}MB, heap=${Math.round(
-            mu.heapUsed / 1024 / 1024
-          )}MB]`
-        );
-
         await page.goto(url, { waitUntil: "domcontentloaded", timeout: 25000 });
       } catch (navErr) {
         log(`page.goto: ERROR ${navErr?.message}`);
