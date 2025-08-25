@@ -7,7 +7,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 // Enable stealth evasions to reduce automation signals
-puppeteer.use(StealthPlugin());
+//puppeteer.use(StealthPlugin());
 
 /** ---------- Debug helpers ---------- */
 const now = () => Date.now();
