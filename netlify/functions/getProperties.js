@@ -148,7 +148,19 @@ export const handler = async (event, context) => {
       const tLaunch = now();
       if (isNetlify) {
         log("puppeteer.launch: Netlify/Chromium branch");
-        browser = await puppeteer.launch({
+        // browser = await puppeteer.launch({
+        //   args: [
+        //     ...chromium.args,
+        //     "--disable-dev-shm-usage",
+        //     "--no-sandbox",
+        //     "--disable-setuid-sandbox",
+        //   ],
+        //   executablePath: await chromium.executablePath(),
+        //   headless: false,
+        //   ignoreHTTPSErrors: true,
+        // });
+        browser = await puppeteer.connect({
+          browserWSEndpoint: `wss://production-sfo.browserless.io/?token=2SvprjVRTXlgATk25737bfcc3a676141b7c450b30b257e53d`,
           args: [
             ...chromium.args,
             "--disable-dev-shm-usage",
@@ -156,8 +168,6 @@ export const handler = async (event, context) => {
             "--disable-setuid-sandbox",
           ],
           executablePath: await chromium.executablePath(),
-          headless: false,
-          ignoreHTTPSErrors: true,
         });
       } else {
         log(
