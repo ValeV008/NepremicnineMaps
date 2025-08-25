@@ -150,6 +150,8 @@ export const handler = async (event, context) => {
     try {
       process.env.HOME = "/tmp";
       process.env.TMPDIR = "/tmp";
+      process.env.XDG_CACHE_HOME = "/tmp";
+      process.env.XDG_CONFIG_HOME = "/tmp";
       await fs.mkdir("/tmp/chrome-user-data", { recursive: true });
       await fs.mkdir("/tmp/data-path", { recursive: true });
       await fs.mkdir("/tmp/cache-dir", { recursive: true });
@@ -351,22 +353,13 @@ export const handler = async (event, context) => {
         return out;
       });
       log(`page.evaluate: scraped count=${properties.length} in ${dur(tEval)}`);
-
-      // Optionally log a couple of sample items (trim fields to keep logs short)
-      if (properties.length > 0) {
-        const sample = properties.slice(0, 2).map((p) => ({
-          id: p.id,
-          title: (p.title || "").slice(0, 60),
-          price: p.price,
-          town: (p.town || "").slice(0, 60),
-        }));
-        log(`page.evaluate: sample=${JSON.stringify(sample)}`);
-      }
     } catch (scrapeErr) {
       log(`SCRAPE BLOCK ERROR: ${scrapeErr?.message}`);
       // Always try to close the browser on scrape error
       try {
-        await browser.close();
+        for (const page of await browser.pages()) {
+          await page.close();
+        }
         log("browser.close after scrape error: ok");
       } catch (e) {
         log(`browser.close after scrape error: ERROR ${e?.message}`);
@@ -377,7 +370,9 @@ export const handler = async (event, context) => {
     // Close browser (normal path)
     const tClose = now();
     try {
-      await browser.close();
+      for (const page of await browser.pages()) {
+        await page.close();
+      }
       log(`browser.close: ok in ${dur(tClose)}`);
     } catch (closeErr) {
       log(`browser.close: ERROR ${closeErr?.message}`);
