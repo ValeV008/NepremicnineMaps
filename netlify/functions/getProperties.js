@@ -236,14 +236,77 @@ export const handler = async (event, context) => {
         if (fr === page.mainFrame()) log(`event: framenavigated -> ${fr.url()}`);
       });
 
+      // --- Fingerprinting & anti-automation leaks ---
+      // Use a UA aligned to Chrome 138 (matches our Chromium bundle)
       await page.setUserAgent(
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
       );
       await page.setViewport({ width: 1920, height: 1080 });
-      log("UA and viewport set");
+      await page.emulateTimezone("Europe/Ljubljana");
+      log("UA/viewport/timezone set");
 
       await page.setExtraHTTPHeaders({
         "Accept-Language": "sl-SI,sl;q=0.9,en-US;q=0.8,en;q=0.7",
+      });
+
+      // Patch automation signals before any scripts run
+      await page.evaluateOnNewDocument(() => {
+        try {
+          Object.defineProperty(navigator, "webdriver", { get: () => false });
+        } catch {}
+
+        try {
+          // Spoof plugins
+          Object.defineProperty(navigator, "plugins", {
+            get: () => [{}, {}, {}],
+          });
+        } catch {}
+
+        try {
+          // Spoof languages
+          Object.defineProperty(navigator, "languages", {
+            get: () => ["sl-SI", "sl", "en-US", "en"],
+          });
+        } catch {}
+
+        try {
+          // Spoof platform
+          Object.defineProperty(navigator, "platform", { get: () => "Win32" });
+        } catch {}
+
+        try {
+          // Reasonable hardware characteristics
+          Object.defineProperty(navigator, "hardwareConcurrency", { get: () => 8 });
+          Object.defineProperty(navigator, "deviceMemory", { get: () => 8 });
+        } catch {}
+
+        try {
+          // Patch permissions query for notifications (common detection)
+          const originalQuery = window.navigator.permissions?.query;
+          if (originalQuery) {
+            window.navigator.permissions.query = (parameters) =>
+              parameters && parameters.name === "notifications"
+                ? Promise.resolve({ state: Notification.permission })
+                : originalQuery(parameters);
+          }
+        } catch {}
+
+        try {
+          // userAgentData may exist — ensure not mobile and set platform
+          if (navigator.userAgentData) {
+            Object.defineProperty(navigator.userAgentData, "mobile", {
+              get: () => false,
+            });
+            if (Array.isArray(navigator.userAgentData.brands)) {
+              // leave brands as-is; altering can break sites
+            }
+            if (!navigator.userAgentData.platform) {
+              Object.defineProperty(navigator.userAgentData, "platform", {
+                get: () => "Windows",
+              });
+            }
+          }
+        } catch {}
       });
 
       if (!isNetlify) {
