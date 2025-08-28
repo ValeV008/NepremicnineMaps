@@ -74,7 +74,8 @@ export const handler = async (event, context) => {
         log("puppeteer.launch: Netlify/Chromium branch");
         // zenrows solution
         browser = await puppeteer.connect({
-          browserWSEndpoint: process.env.ZENROW_URL,
+          //browserWSEndpoint: process.env.ZENROW_URL,
+          browserWSEndpoint: process.env.BROWSERLSES_URL,
         });
       } else {
         log(
