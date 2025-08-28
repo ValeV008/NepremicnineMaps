@@ -1,18 +1,30 @@
-//import puppeteer from "puppeteer-extra";
-//import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import puppeteer from "puppeteer-core";
-//import chromium from "@sparticuz/chromium";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-// Enable stealth evasions to reduce automation signals
-//puppeteer.use(StealthPlugin());
-
-/** ---------- Debug helpers ---------- */
+// Debug helpers
 const now = () => Date.now();
 const dur = (t0) => `${now() - t0}ms`;
 
+/**
+ * Netlify Function handler that scrapes property listings from a nepremicnine.net URL.
+ *
+ * Accepts a GET request with query parameter `url` pointing to a listings page.
+ * Loads the page via Puppeteer, waits for `.property-box` elements, and extracts
+ * a compact set of fields: id, title, town, price, link, type, image, url.
+ * Geocoding is not done here; it is handled by `getPropsLocation`.
+ *
+ * Environment variables:
+ * - CHROME_EXECUTABLE_PATH: Path to Chrome/Chromium for local runs
+ * - ZENROW_URL: WebSocket endpoint for ZenRows remote Chromium (serverless)
+ *
+ * @param {Object} event - Netlify event
+ * @param {string} event.httpMethod - HTTP method
+ * @param {{url?: string}} [event.queryStringParameters] - Query params including the listings URL
+ * @param {Object} context - Netlify context
+ * @returns {Promise<{statusCode:number, headers:Object, body:string}>} JSON response
+ */
 export const handler = async (event, context) => {
   const tStart = now();
   const log = (msg) => console.log(`${msg}`);
@@ -60,22 +72,6 @@ export const handler = async (event, context) => {
       const tLaunch = now();
       if (isNetlify) {
         log("puppeteer.launch: Netlify/Chromium branch");
-        // browser = await puppeteer.launch({
-        //   args: [
-        //     ...chromium.args,
-        //     "--disable-dev-shm-usage",
-        //     "--no-sandbox",
-        //     "--disable-setuid-sandbox",
-        //   ],
-        //   executablePath: await chromium.executablePath(),
-        //   headless: false,
-        //   ignoreHTTPSErrors: true,
-        // });
-        // browserless solution - not working
-        // browser = await puppeteer.connect({
-        //   browserWSEndpoint: `wss://production-ams.browserless.io/?token=process.env.BROWSERLESS_TOKEN`,
-        //   args: ["--disable-dev-shm-usage", "--no-sandbox", "--disable-setuid-sandbox"],
-        // });
         // zenrows solution
         browser = await puppeteer.connect({
           browserWSEndpoint: process.env.ZENROW_URL,
@@ -103,7 +99,6 @@ export const handler = async (event, context) => {
       log(`page.newPage: ok in ${dur(tPage)}`);
 
       // Pipe page console/errors for visibility
-      // Track only navigation requests/responses (to reduce noise)
       page.on("request", (req) => {
         if (req.isNavigationRequest()) {
           log(`nav.request: ${req.method()} ${req.url()}`);
@@ -159,42 +154,20 @@ export const handler = async (event, context) => {
         });
       }
 
-      // test navigation to example.com
-      // try {
-      //   const tSanity = Date.now();
-      //   log(`sanity.goto: https://example.com`);
-      //   await page.goto("https://example.com", {
-      //     waitUntil: "domcontentloaded",
-      //     timeout: 8000,
-      //   });
-      //   log(`sanity.goto: ok in ${Date.now() - tSanity}ms`);
-      // } catch (e) {
-      //   log(`sanity.goto: ERROR ${e.message}`);
-      // }
-
       // Navigate
       const tGoto = now();
       log(`page.goto: start -> ${url}`);
       try {
-        //await page.goto(url, { waitUntil: "domcontentloaded", timeout: 25000 });
-        //zenrow code:
-        await page.goto(url, { waitUntil: "networkidle0" });
+        await page.goto(url, { waitUntil: "networkidle2" });
       } catch (navErr) {
         log(`page.goto: ERROR ${navErr?.message}`);
         throw navErr;
       }
       log(`page.goto: done in ${dur(tGoto)}`);
 
-      //zenrow code:
-      // await new Promise(function (resolve) {
-      //   setTimeout(resolve, 10000);
-      // });
-
       // Wait for the listing container
       const tWait = now();
       try {
-        //await page.waitForSelector(".property-box", { timeout: 10000 });
-        //zenrow code:
         await page.waitForSelector(".property-box");
         log(`waitForSelector(".property-box"): ok in ${dur(tWait)}`);
       } catch (waitErr) {
@@ -202,6 +175,7 @@ export const handler = async (event, context) => {
         throw waitErr;
       }
 
+      // Scrape the listings
       const tEval = now();
       log("page.evaluate: start scrape");
       properties = await page.evaluate(() => {
@@ -216,6 +190,8 @@ export const handler = async (event, context) => {
           const price = box.querySelector("h6")?.textContent.trim() || "No price";
           const link =
             box.querySelector('a[href*="/oglasi-oddaja/"]')?.href || "No link";
+
+          const type = box.querySelector("span.tipi")?.textContent.trim() || "No type";
 
           let image = "No image";
           const imgElement = box.querySelector(".property-image img");
@@ -244,6 +220,7 @@ export const handler = async (event, context) => {
             town,
             price,
             link,
+            type,
             image,
             url,
           });
@@ -253,30 +230,19 @@ export const handler = async (event, context) => {
       log(`page.evaluate: scraped count=${properties.length} in ${dur(tEval)}`);
     } catch (scrapeErr) {
       log(`SCRAPE BLOCK ERROR: ${scrapeErr?.message}`);
-      // Always try to close the browser on scrape error
-      try {
-        for (const page of await browser.pages()) {
-          await page.close();
-        }
-        log("browser.close after scrape error: ok");
-      } catch (e) {
-        log(`browser.close after scrape error: ERROR ${e?.message}`);
-      }
       throw scrapeErr;
-    }
-
-    // Close browser (normal path)
-    const tClose = now();
-    try {
-      for (const page of await browser.pages()) {
-        await page.close();
+    } finally {
+      const tClose = now();
+      try {
+        const pages = await browser.pages();
+        await Promise.all(pages.map((p) => p.close().catch(() => {})));
+        await browser.close();
+        log(`browser.close: ok in ${dur(tClose)}`);
+      } catch (closeErr) {
+        log(`browser.close: ERROR ${closeErr?.message}`);
       }
-      log(`browser.close: ok in ${dur(tClose)}`);
-    } catch (closeErr) {
-      log(`browser.close: ERROR ${closeErr?.message}`);
     }
 
-    // --- Return scraped properties only (no geolocation here) ---
     const tEnd = dur(tStart);
     log(`handler: success; total=${tEnd}`);
 
@@ -291,7 +257,7 @@ export const handler = async (event, context) => {
   } catch (error) {
     console.error(`FATAL: ${error?.message}`);
     return {
-      statusCode: 200, // keep your current behavior
+      statusCode: 200,
       headers,
       body: JSON.stringify({
         success: false,

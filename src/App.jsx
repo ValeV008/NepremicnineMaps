@@ -197,6 +197,8 @@ export default function App() {
                   >
                     <b>{property.title}</b>
                     <br />
+                    {property.type}
+                    <br />
                     {property.price}
                     {property.image && (
                       <div style={{ marginTop: "8px" }}>

@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// Debug helpers (duplicated minimal set to avoid coupling)
+// Debug helpers
 const now = () => Date.now();
 const dur = (t0) => `${now() - t0}ms`;
 
