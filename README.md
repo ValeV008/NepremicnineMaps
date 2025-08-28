@@ -23,11 +23,10 @@ Interactive map viewer for listings scraped from nepremicnine.net using Netlify 
 
 ### Environment Variables
 
-Create a `.env` file in the project root (not committed). The scraper reads these via `dotenv`.
+Create a `.env` file in the project root (not committed).
 
-- ZENROW_URL: WebSocket endpoint to a ZenRows browser session (recommended for Netlify/serverless)
-  - Example: `wss://<your-zenrows-endpoint>`
-- CHROME_EXECUTABLE_PATH: Path to local Chrome/Chromium (used when running locally without ZenRows)
+- ZENROW_URL: WebSocket endpoint to a ZenRows browser session (used when running from netlify deployment site)
+- CHROME_EXECUTABLE_PATH: Path to local Chrome/Chromium (used when running locally)
   - Example (Windows): `C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe`
 - NOMINATIM_USER_AGENT (optional): Custom UA for Nominatim requests
 - NOMINATIM_CONTACT_EMAIL (optional): Contact email for Nominatim
