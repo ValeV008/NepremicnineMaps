@@ -137,22 +137,27 @@ export const handler = async (event, context) => {
       });
       log("UA/viewport/timezone set");
 
-      if (!isNetlify) {
-        await page.setRequestInterception(true);
-        page.on("request", (req) => {
-          const url = req.url();
-          // block only the known troublemakers
-          if (
-            url.includes("nepremicnine.click/www/delivery/") ||
-            url.includes("asyncjs.php") ||
-            url.includes("ajs.php")
-          ) {
-            return req.abort();
-          }
-          // allow everything else without delay
-          return req.continue();
-        });
-      }
+      // Block known ad/analytics hosts to reduce noise and speed up rendering
+      await page.setRequestInterception(true);
+      const blockedHostFragments = [
+        "nepremicnine.click/",
+        "gemius.pl/",
+        "hit.gemius.pl/",
+        "ls.hit.gemius.pl/",
+        "/v2.8/plugins/like.php", // Facebook like plugin
+        "consentcdn.cookiebot.com/",
+        "googletagmanager.com/",
+        "google-analytics.com/",
+        "doubleclick.net/",
+        "googlesyndication.com/",
+      ];
+      page.on("request", (req) => {
+        const url = req.url();
+        if (blockedHostFragments.some((frag) => url.includes(frag))) {
+          return req.abort();
+        }
+        return req.continue();
+      });
 
       // Navigate
       const tGoto = now();
