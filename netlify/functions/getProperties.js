@@ -159,7 +159,7 @@ export const handler = async (event, context) => {
         });
       }
 
-      // sanity navigation
+      // test navigation to example.com
       // try {
       //   const tSanity = Date.now();
       //   log(`sanity.goto: https://example.com`);
@@ -176,17 +176,26 @@ export const handler = async (event, context) => {
       const tGoto = now();
       log(`page.goto: start -> ${url}`);
       try {
-        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 25000 });
+        //await page.goto(url, { waitUntil: "domcontentloaded", timeout: 25000 });
+        //zenrow code:
+        await page.goto(url, { waitUntil: "networkidle0" });
       } catch (navErr) {
         log(`page.goto: ERROR ${navErr?.message}`);
         throw navErr;
       }
       log(`page.goto: done in ${dur(tGoto)}`);
 
+      //zenrow code:
+      // await new Promise(function (resolve) {
+      //   setTimeout(resolve, 10000);
+      // });
+
       // Wait for the listing container
       const tWait = now();
       try {
-        await page.waitForSelector(".property-box", { timeout: 10000 });
+        //await page.waitForSelector(".property-box", { timeout: 10000 });
+        //zenrow code:
+        await page.waitForSelector(".property-box");
         log(`waitForSelector(".property-box"): ok in ${dur(tWait)}`);
       } catch (waitErr) {
         log(`waitForSelector(".property-box"): TIMEOUT/ERROR ${waitErr?.message}`);
